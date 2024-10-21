@@ -4,6 +4,13 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "common-runtime-bin"
+path = "src/bin.rs"
+
 [lints]
 workspace = true
 
@@ -29,6 +36,8 @@ ratelimit.workspace = true
 rand.workspace = true
 pin-project.workspace = true
 futures.workspace = true
+tempfile.workspace = true
+clap.workspace = true
 
 [dev-dependencies]
 tokio-test = "0.4"

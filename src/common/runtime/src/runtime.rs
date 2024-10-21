@@ -26,7 +26,7 @@ pub use tokio::task::{JoinError, JoinHandle};
 use crate::error::*;
 use crate::metrics::*;
 use crate::runtime_default::DefaultRuntime;
-use crate::runtime_throttle_count_mode::Priority;
+use crate::runtime_throttleable::ThrottleableRuntime;
 
 // configurations
 pub type Runtime = DefaultRuntime;
@@ -174,6 +174,41 @@ impl BuilderBuild<DefaultRuntime> for Builder {
     }
 }
 
+impl BuilderBuild<ThrottleableRuntime> for Builder {
+    fn build(&mut self) -> Result<ThrottleableRuntime> {
+        let runtime = self
+            .builder
+            .enable_all()
+            .thread_name(self.thread_name.clone())
+            .on_thread_start(on_thread_start(self.thread_name.clone()))
+            .on_thread_stop(on_thread_stop(self.thread_name.clone()))
+            .on_thread_park(on_thread_park(self.thread_name.clone()))
+            .on_thread_unpark(on_thread_unpark(self.thread_name.clone()))
+            .build()
+            .context(BuildRuntimeSnafu)?;
+
+        let name = self.runtime_name.clone();
+        let handle = runtime.handle().clone();
+        let (send_stop, recv_stop) = oneshot::channel();
+        // Block the runtime to shutdown.
+        let _ = thread::Builder::new()
+            .name(format!("{}-blocker", self.thread_name))
+            .spawn(move || runtime.block_on(recv_stop));
+
+        #[cfg(tokio_unstable)]
+        register_collector(name.clone(), &handle);
+
+        ThrottleableRuntime::new(
+            &name,
+            self.priority,
+            handle,
+            Arc::new(Dropper {
+                close: Some(send_stop),
+            }),
+        )
+    }
+}
+
 #[cfg(tokio_unstable)]
 pub fn register_collector(name: String, handle: &Handle) {
     let name = name.replace("-", "_");
@@ -212,6 +247,15 @@ fn on_thread_unpark(thread_name: String) -> impl Fn() + 'static {
             .with_label_values(&[thread_name.as_str()])
             .dec();
     }
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub enum Priority {
+    VeryLow = 0,
+    Low = 1,
+    Middle = 2,
+    High = 3,
+    VeryHigh = 4,
 }
 
 #[cfg(test)]

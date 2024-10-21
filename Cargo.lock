@@ -2343,6 +2343,7 @@ name = "common-runtime"
 version = "0.9.5"
 dependencies = [
  "async-trait",
+ "clap 4.5.19",
  "common-error",
  "common-macro",
  "common-telemetry",
@@ -2357,7 +2358,9 @@ dependencies = [
  "rand",
  "ratelimit",
  "serde",
+ "serde_json",
  "snafu 0.8.5",
+ "tempfile",
  "tokio",
  "tokio-metrics",
  "tokio-metrics-collector",
